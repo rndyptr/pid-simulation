@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulasi Kendali Sistem Orde-2 — PID vs ON/OFF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D14;
+    --surface:#12161F;
+    --surface-alt:#1A1F2B;
+    --border:#262C3A;
+    --ink:#F2F3F5;
+    --ink-soft:#B7BCC8;
+    --muted:#767D8C;
+    --accent:#F2F3F5;    --on-accent:#0A0D14;
+    --blue-bg:#15304C;   --blue-text:#7DC4F2;
+    --red-bg:#402024;    --red-text:#FF8F8F;
+    --green-bg:#123626;  --green-text:#5EE3A3;
+    --yellow-bg:#3A2E10; --yellow-text:#F2C25A;
+    --chart-y:#FF8F8F; --chart-ref:#7DC4F2; --chart-u:#5EE3A3; --chart-grid:#232838;
+    --serif:'Newsreader', serif;
+    --sans:'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono:'IBM Plex Mono', 'SF Mono', monospace;
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+    --space-5:20px; --space-6:24px; --space-7:32px; --space-8:40px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--ink); font-family:var(--sans);}
+  body{padding:var(--space-7) var(--space-5) 56px; line-height:1.6;}
+  .app{max-width:1180px; margin:0 auto;}
+
+  /* ---------- header ---------- */
+  header{display:flex; align-items:flex-end; justify-content:space-between; gap:var(--space-6); margin-bottom:var(--space-6); flex-wrap:wrap;}
+  .header-text{max-width:600px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:var(--space-2);}
+  h1{font-family:var(--serif); font-weight:500; font-size:clamp(28px,4vw,40px); letter-spacing:-0.02em; line-height:1.1;}
+  .subtitle{color:var(--ink-soft); font-size:14.5px; max-width:540px; margin-top:var(--space-2);}
+  .plant-badge{font-family:var(--mono); font-size:12px; color:var(--ink-soft); border:1px solid var(--border); background:var(--surface); border-radius:8px; padding:var(--space-3) var(--space-4); white-space:nowrap; flex-shrink:0;}
+  .plant-badge b{color:var(--ink); font-weight:600;}
+
+  /* ---------- hero readout ---------- */
+  .hero{
+    display:grid; grid-template-columns: 160px 1fr auto; align-items:center; gap:var(--space-7);
+    padding:var(--space-6) var(--space-7); margin-bottom:var(--space-5);
+  }
+  .dial-wrap{position:relative; width:160px; height:160px; margin:0 auto;}
+  .dial-wrap svg{width:100%; height:100%;}
+  .dial-center{position:absolute; left:0; right:0; top:60%; display:flex; flex-direction:column; align-items:center;}
+  .dial-value{font-family:var(--mono); font-size:26px; font-weight:600;}
+  .dial-unit{font-family:var(--mono); font-size:10.5px; letter-spacing:0.03em; color:var(--muted); margin-top:2px; text-align:center;}
+
+  .readouts{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border-left:1px solid var(--border);}
+  .readout{padding:0 var(--space-5);}
+  .readout + .readout{border-left:1px solid var(--border);}
+  .readout-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin-bottom:var(--space-2); white-space:nowrap;}
+  .readout-value{font-family:var(--mono); font-size:22px; font-weight:600; color:var(--ink); white-space:nowrap;}
+  .readout-value span{font-size:13px; color:var(--muted); font-weight:400;}
+
+  .mode-tag{font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:6px 12px; border-radius:9999px; white-space:nowrap;}
+  .mode-tag.pid{background:var(--blue-bg); color:var(--blue-text);}
+  .mode-tag.onoff{background:var(--yellow-bg); color:var(--yellow-text);}
+  .act-tag{font-family:var(--mono); font-size:11px; padding:6px 12px; border-radius:9999px; white-space:nowrap; min-width:104px; text-align:center;}
+  .act-pos{background:var(--red-bg); color:var(--red-text);}
+  .act-neg{background:var(--blue-bg); color:var(--blue-text);}
+  .act-zero{background:var(--surface-alt); color:var(--muted); border:1px solid var(--border);}
+  .hero-tags{display:flex; flex-direction:column; align-items:flex-end; gap:var(--space-3);}
+
+  /* ---------- grid layout ---------- */
+  .grid{display:grid; grid-template-columns:300px 1fr; gap:var(--space-5); align-items:start;}
+  @media (max-width:860px){
+    .grid{grid-template-columns:1fr;}
+    .hero{grid-template-columns:1fr; text-align:center;}
+    .readouts{border-left:none; border-top:1px solid var(--border); padding-top:var(--space-4);}
+    .readout{padding:var(--space-1) var(--space-3);}
+    .readout + .readout{border-left:none;}
+    .hero-tags{align-items:center; flex-direction:row; justify-content:center;}
+  }
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:var(--space-6);}
+  .card + .card{margin-top:var(--space-5);}
+
+  /* ---------- control panel ---------- */
+  .panel-title{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:var(--space-4);}
+
+  .segmented{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:var(--space-6);}
+  .segmented button{flex:1; border:none; background:var(--surface); color:var(--ink-soft); font-family:var(--sans); font-size:13px; font-weight:500; padding:10px 8px; cursor:pointer; transition:background .15s;}
+  .segmented button + button{border-left:1px solid var(--border);}
+  .segmented button.active{background:var(--accent); color:var(--on-accent);}
+
+  .field{margin-bottom:var(--space-5);}
+  .field:last-child{margin-bottom:0;}
+  .field-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:var(--space-2); gap:var(--space-2);}
+  .field-label{font-size:13px; color:var(--ink-soft);}
+  .field-value{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap;}
+  input[type=range]{-webkit-appearance:none; width:100%; height:4px; border-radius:2px; background:var(--border); outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--ink); cursor:pointer; border:2px solid var(--surface); box-shadow:0 0 0 1px var(--border);}
+  input[type=range]::-moz-range-thumb{width:16px; height:16px; border-radius:50%; background:var(--ink); cursor:pointer; border:2px solid var(--surface);}
+
+  .divider{height:1px; background:var(--border); margin:var(--space-5) 0;}
+
+  .plant-fixed{font-family:var(--mono); font-size:12px; background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:var(--space-3) var(--space-4); color:var(--ink-soft); line-height:1.55;}
+  .plant-fixed b{color:var(--ink);}
+
+  .sim-controls{display:flex; gap:var(--space-2); margin-top:var(--space-1);}
+  .btn{flex:1; font-family:var(--sans); font-size:13px; font-weight:500; padding:10px 0; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--ink); cursor:pointer; transition:transform .1s, background .15s;}
+  .btn:active{transform:scale(0.97);}
+  .btn.primary{background:var(--accent); color:var(--on-accent); border-color:var(--accent);}
+  .btn.primary:hover{background:#D8DAE0;}
+  .btn:hover{background:var(--surface-alt);}
+
+  .speed-row{display:flex; gap:var(--space-2); margin-top:var(--space-3);}
+  .speed-btn{flex:1; font-family:var(--mono); font-size:11px; padding:7px 0; border-radius:6px; border:1px solid var(--border); background:var(--surface-alt); color:var(--ink-soft); cursor:pointer;}
+  .speed-btn.active{background:var(--accent); color:var(--on-accent); border-color:var(--accent);}
+
+  /* ---------- charts ---------- */
+  .chart-header{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:var(--space-4); gap:var(--space-3); flex-wrap:wrap;}
+  .chart-title{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);}
+  .legend{display:flex; gap:var(--space-4); font-size:12px; color:var(--ink-soft);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .swatch{width:10px; height:2px; display:inline-block;}
+  canvas{width:100%; display:block;}
+
+  /* ---------- formula card ---------- */
+  .formula-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6);}
+  .formula-block.full{grid-column:1 / -1;}
+  @media (max-width:640px){.formula-grid{grid-template-columns:1fr;}}
+  .formula-block h3{font-family:var(--sans); font-size:13px; font-weight:600; margin-bottom:var(--space-3); color:var(--ink);}
+  .formula-box{font-family:var(--mono); font-size:13.5px; background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:var(--space-4); color:var(--ink); line-height:1.9; overflow-x:auto;}
+  .formula-note{font-size:12.5px; color:var(--muted); margin-top:var(--space-3); line-height:1.55;}
+
+  footer{margin-top:var(--space-6); font-size:12.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:var(--space-4); line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="header-text">
+      <div class="eyebrow">Laboratorium Fisika · Sistem Kendali</div>
+      <h1>Simulasi Sistem Kendali Orde-2</h1>
+      <p class="subtitle">Bandingkan respons kendali ON/OFF dan PID pada plant orde-2 tetap, lalu amati pengaruh Kp, Ki, dan Kd terhadap keluaran sistem y(t) yang mengikuti referensi r(t).</p>
+    </div>
+    <div class="plant-badge">Plant tetap: <b>G(s) = 1 / (s&sup2; + 9s + 20)</b></div>
+  </header>
+
+  <div class="hero card">
+    <div class="dial-wrap">
+      <svg viewBox="0 0 160 160">
+        <path d="M 24 124 A 62 62 0 1 1 136 124" fill="none" stroke="#262C3A" stroke-width="10" stroke-linecap="round"/>
+        <path id="dialArc" d="M 24 124 A 62 62 0 1 1 136 124" fill="none" stroke="#7DC4F2" stroke-width="10" stroke-linecap="round" stroke-dasharray="292" stroke-dashoffset="292"/>
+        <line id="needle" x1="80" y1="80" x2="80" y2="30" stroke="#F2F3F5" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="80" cy="80" r="5" fill="#F2F3F5"/>
+      </svg>
+      <div class="dial-center">
+        <div class="dial-value" id="dialReadout">0.0</div>
+        <div class="dial-unit">y(t) — KELUARAN SISTEM</div>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="readout">
+        <div class="readout-label">Referensi r</div>
+        <div class="readout-value" id="rSetpoint">3.0</div>
+      </div>
+      <div class="readout">
+        <div class="readout-label">Error e = r&minus;y</div>
+        <div class="readout-value" id="rError">3.0</div>
+      </div>
+      <div class="readout">
+        <div class="readout-label">Sinyal kendali u(t)</div>
+        <div class="readout-value" id="rOutput">0<span> %</span></div>
+      </div>
+      <div class="readout">
+        <div class="readout-label">Waktu simulasi</div>
+        <div class="readout-value" id="rTime">0<span> s</span></div>
+      </div>
+    </div>
+
+    <div class="hero-tags">
+      <div class="mode-tag pid" id="modeTag">MODE: PID</div>
+      <div class="act-tag act-zero" id="actTag">AKTUATOR 0%</div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ===== PANEL KONTROL ===== -->
+    <aside class="card">
+      <div class="panel-title">Mode Kendali</div>
+      <div class="segmented">
+        <button id="btnPID" class="active">PID</button>
+        <button id="btnOnOff">ON / OFF</button>
+      </div>
+
+      <div id="pidFields">
+        <div class="field">
+          <div class="field-row"><span class="field-label">Kp — Gain Proporsional</span><span class="field-value" id="vKp">25.0</span></div>
+          <input type="range" id="sKp" min="0" max="60" step="1" value="25">
+        </div>
+        <div class="field">
+          <div class="field-row"><span class="field-label">Ki — Gain Integral</span><span class="field-value" id="vKi">4.0</span></div>
+          <input type="range" id="sKi" min="0" max="15" step="0.5" value="4">
+        </div>
+        <div class="field">
+          <div class="field-row"><span class="field-label">Kd — Gain Derivatif</span><span class="field-value" id="vKd">6.0</span></div>
+          <input type="range" id="sKd" min="0" max="15" step="0.5" value="6">
+        </div>
+      </div>
+
+      <div id="onoffFields" style="display:none;">
+        <div class="field">
+          <div class="field-row"><span class="field-label">Histeresis (± δ)</span><span class="field-value" id="vHyst">0.3</span></div>
+          <input type="range" id="sHyst" min="0.05" max="1.5" step="0.05" value="0.3">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel-title">Referensi &amp; Plant</div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">r — Referensi (setpoint)</span><span class="field-value" id="vSP">3.0</span></div>
+        <input type="range" id="sSP" min="-5" max="5" step="0.5" value="3">
+      </div>
+      <div class="plant-fixed">
+        Plant bersifat tetap (kutub di s=&minus;4 dan s=&minus;5):<br>
+        <b>G(s) = 1 / ((s+4)(s+5))</b>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel-title">Simulasi</div>
+      <div class="sim-controls">
+        <button class="btn primary" id="btnPlay">Jalankan</button>
+        <button class="btn" id="btnReset">Reset</button>
+      </div>
+      <div class="speed-row">
+        <button class="speed-btn" data-speed="1">1×</button>
+        <button class="speed-btn active" data-speed="5">5×</button>
+        <button class="speed-btn" data-speed="20">20×</button>
+      </div>
+    </aside>
+
+    <!-- ===== GRAFIK & FORMULA ===== -->
+    <main>
+      <div class="card">
+        <div class="chart-header">
+          <span class="chart-title">Keluaran sistem y(t)</span>
+          <div class="legend">
+            <span><span class="swatch" style="background:#FF8F8F;"></span>y(t) terukur</span>
+            <span><span class="swatch" style="background:#7DC4F2; border-top:2px dashed #7DC4F2; height:0;"></span>Referensi r(t)</span>
+          </div>
+        </div>
+        <canvas id="tempChart" height="260"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="chart-header">
+          <span class="chart-title">Sinyal kendali u(t) — aktuator</span>
+          <div class="legend"><span><span class="swatch" style="background:#5EE3A3;"></span>u(t) (%)</span></div>
+        </div>
+        <canvas id="uChart" height="140"></canvas>
+      </div>
+
+      <div class="card formula-card">
+        <div class="panel-title">Model &amp; Persamaan yang Digunakan</div>
+        <div class="formula-grid">
+          <div class="formula-block">
+            <h3>Fungsi transfer plant (tetap)</h3>
+            <div class="formula-box">
+              G(s) = Y(s) / U(s) = 1 / (s&sup2; + 9s + 20)<br>
+              y&Prime; + 9y&prime; + 20y = u(t)
+            </div>
+            <p class="formula-note">Plant orde-2 dengan dua kutub riil di s = −4 dan s = −5 (teredam lebih/overdamped, tanpa osilasi alami). Parameter plant tidak dapat diubah karena mengikuti fungsi transfer loop tertutup yang ditentukan.</p>
+          </div>
+          <div class="formula-block">
+            <h3 id="ctrlEqTitle">Persamaan kendali — PID</h3>
+            <div class="formula-box" id="ctrlEqBox">
+              e(t) = r − y(t)<br>
+              u(t) = Kp·e + Ki·∫e dt + Kd·(−dy/dt)<br>
+              u(t) clamp → [−100, 100] %
+            </div>
+            <p class="formula-note" id="ctrlEqNote">Turunan dihitung langsung dari kecepatan keadaan dy/dt (bukan estimasi beda hingga terhadap error) sehingga bebas dari lonjakan turunan (derivative kick) saat referensi berubah. Integral dibatasi (anti-windup) agar tidak menumpuk berlebih saat u jenuh.</p>
+          </div>
+          <div class="formula-block full">
+            <h3>Fungsi transfer loop tertutup — mode PID</h3>
+            <div class="formula-box">
+              Y(s) / R(s) = (Kp·s + Ki + Kd·s&sup2;) / (s&sup3; + (9+Kd)·s&sup2; + (Kp+20)·s + Ki)
+            </div>
+            <p class="formula-note">Diperoleh dari G(s) = 1/((s+4)(s+5)) dengan kendali PID paralel C(s) = Kp + Ki/s + Kd·s dalam umpan balik satuan (unity feedback): Y/R = C·G / (1 + C·G). Berlaku selama sinyal kendali u(t) tidak jenuh; pada mode ON/OFF hubungan ini tidak berlaku karena histeresis bersifat nonlinear.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    Simulasi ini menyelesaikan model plant secara numerik (integrasi Euler, dt = 0.1 s) karena kendali ON/OFF bersifat non-linear (histeresis) dan PID disertai saturasi output — keduanya tidak dapat direpresentasikan sebagai konvolusi Laplace linear murni. Untuk analisis kestabilan linear klasik pada mode PID tanpa saturasi, fungsi transfer loop tertutup di atas tetap berlaku.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const btnPID = $('btnPID'), btnOnOff = $('btnOnOff');
+  const pidFields = $('pidFields'), onoffFields = $('onoffFields');
+  const sKp=$('sKp'), sKi=$('sKi'), sKd=$('sKd'), sHyst=$('sHyst');
+  const sSP=$('sSP');
+  const vKp=$('vKp'), vKi=$('vKi'), vKd=$('vKd'), vHyst=$('vHyst');
+  const vSP=$('vSP');
+  const btnPlay=$('btnPlay'), btnReset=$('btnReset');
+  const speedBtns = document.querySelectorAll('.speed-btn');
+  const modeTag=$('modeTag'), actTag=$('actTag');
+  const rSetpoint=$('rSetpoint'), rError=$('rError'), rOutput=$('rOutput'), rTime=$('rTime');
+  const dialReadout=$('dialReadout'), dialArc=$('dialArc'), needle=$('needle');
+  const ctrlEqTitle=$('ctrlEqTitle'), ctrlEqBox=$('ctrlEqBox'), ctrlEqNote=$('ctrlEqNote');
+
+  const tempCanvas = $('tempChart'), uCanvas = $('uChart');
+  const tctx = tempCanvas.getContext('2d'), uctx = uCanvas.getContext('2d');
+
+  // ---------- state ----------
+  let mode = 'PID';           // 'PID' | 'ONOFF'
+  let running = false;
+  let speed = 5;               // sim-seconds per real second
+  const DT = 0.1;               // integration step (s)
+  const WINDOW = 40;             // seconds shown in chart
+  const UMAX = 100;              // actuator saturation (%)
+
+  let params = {
+    Kp: parseFloat(sKp.value), Ki: parseFloat(sKi.value), Kd: parseFloat(sKd.value),
+    hyst: parseFloat(sHyst.value),
+    SP: parseFloat(sSP.value)
+  };
+
+  let sim = null;
+  function freshSim(){
+    return {
+      t: 0,
+      y: 0, dy: 0,
+      integral: 0,
+      u: 0,
+      history: { t:[0], y:[0], u:[0] }
+    };
+  }
+  sim = freshSim();
+
+  // ---------- UI bindings ----------
+  function syncLabels(){
+    vKp.textContent = params.Kp.toFixed(1);
+    vKi.textContent = params.Ki.toFixed(2);
+    vKd.textContent = params.Kd.toFixed(1);
+    vHyst.textContent = params.hyst.toFixed(2);
+    vSP.textContent = params.SP.toFixed(1);
+    rSetpoint.textContent = params.SP.toFixed(1);
+  }
+  syncLabels();
+
+  function setMode(m){
+    mode = m;
+    btnPID.classList.toggle('active', m==='PID');
+    btnOnOff.classList.toggle('active', m==='ONOFF');
+    pidFields.style.display = m==='PID' ? 'block' : 'none';
+    onoffFields.style.display = m==='ONOFF' ? 'block' : 'none';
+    modeTag.textContent = 'MODE: ' + (m==='PID' ? 'PID' : 'ON/OFF');
+    modeTag.className = 'mode-tag ' + (m==='PID' ? 'pid' : 'onoff');
+
+    if(m==='PID'){
+      ctrlEqTitle.textContent = 'Persamaan kendali — PID';
+      ctrlEqBox.innerHTML = 'e(t) = r − y(t)<br>u(t) = Kp·e + Ki·∫e dt + Kd·(−dy/dt)<br>u(t) clamp → [−100, 100] %';
+      ctrlEqNote.textContent = 'Turunan dihitung langsung dari kecepatan keadaan dy/dt (bukan estimasi beda hingga terhadap error) sehingga bebas dari lonjakan turunan (derivative kick) saat referensi berubah. Integral dibatasi (anti-windup) agar tidak menumpuk berlebih saat u jenuh.';
+    } else {
+      ctrlEqTitle.textContent = 'Persamaan kendali — ON/OFF (histeresis)';
+      ctrlEqBox.innerHTML = 'jika y &lt; r − δ  →  u = +100 %<br>jika y &gt; r + δ  →  u = −100 %<br>selain itu  →  u tetap (mempertahankan status)';
+      ctrlEqNote.textContent = 'Pita histeresis ±δ mencegah aktuator berosilasi terlalu cepat (chattering) di sekitar referensi. Semakin lebar δ, semakin besar riak keluaran namun semakin jarang aktuator berpindah status.';
+    }
+  }
+  btnPID.addEventListener('click', ()=> setMode('PID'));
+  btnOnOff.addEventListener('click', ()=> setMode('ONOFF'));
+  setMode('PID');
+
+  function bindSlider(input, key){
+    input.addEventListener('input', ()=>{
+      params[key] = parseFloat(input.value);
+      syncLabels();
+    });
+  }
+  bindSlider(sKp, 'Kp'); bindSlider(sKi, 'Ki'); bindSlider(sKd, 'Kd');
+  bindSlider(sHyst, 'hyst');
+  bindSlider(sSP, 'SP');
+
+  btnPlay.addEventListener('click', ()=>{
+    running = !running;
+    btnPlay.textContent = running ? 'Jeda' : 'Jalankan';
+  });
+  btnReset.addEventListener('click', ()=>{
+    sim = freshSim();
+    running = false;
+    btnPlay.textContent = 'Jalankan';
+  });
+  speedBtns.forEach(b=>{
+    b.addEventListener('click', ()=>{
+      speedBtns.forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      speed = parseFloat(b.dataset.speed);
+    });
+  });
+
+  // ---------- simulation step ----------
+  // Plant (fixed): y'' + 9y' + 20y = u  <=>  G(s) = 1/((s+4)(s+5))
+  function step(){
+    const e = params.SP - sim.y;
+
+    if(mode === 'PID'){
+      sim.integral += e * DT;
+      const iTerm = params.Ki * sim.integral;
+      const iTermClamped = Math.max(-UMAX, Math.min(UMAX, iTerm));
+      const dTerm = params.Kd * (-sim.dy); // derivative on measured state (dy/dt), no finite-difference kick
+      let u = params.Kp * e + iTermClamped + dTerm;
+      u = Math.max(-UMAX, Math.min(UMAX, u));
+      sim.u = u;
+    } else {
+      const halfBand = params.hyst / 2;
+      if(sim.y < params.SP - halfBand) sim.u = UMAX;
+      else if(sim.y > params.SP + halfBand) sim.u = -UMAX;
+      // else keep previous sim.u
+    }
+
+    const ddy = -20 * sim.y - 9 * sim.dy + sim.u;
+    sim.y = sim.y + sim.dy * DT;
+    sim.dy = sim.dy + ddy * DT;
+    sim.t = sim.t + DT;
+
+    sim.history.t.push(sim.t);
+    sim.history.y.push(sim.y);
+    sim.history.u.push(sim.u);
+
+    const cutoff = sim.t - WINDOW;
+    while(sim.history.t.length > 2 && sim.history.t[0] < cutoff){
+      sim.history.t.shift(); sim.history.y.shift(); sim.history.u.shift();
+    }
+  }
+
+  // ---------- rendering: dial ----------
+  const ARC_LEN = 292;
+  const DIAL_LO = -2, DIAL_HI = 8;
+  function updateDial(){
+    dialReadout.textContent = sim.y.toFixed(2);
+    const frac = Math.max(0, Math.min(1, (sim.y - DIAL_LO) / (DIAL_HI - DIAL_LO)));
+    dialArc.setAttribute('stroke-dashoffset', String(ARC_LEN * (1 - frac)));
+    const color = sim.y < params.SP - 0.3 ? '#7DC4F2' : (sim.y > params.SP + 0.3 ? '#FF8F8F' : '#5EE3A3');
+    dialArc.setAttribute('stroke', color);
+    const angle = -125 + frac * 250; // degrees, needle sweep
+    needle.setAttribute('transform', `rotate(${angle} 80 80)`);
+
+    rError.textContent = (params.SP - sim.y).toFixed(2);
+    rOutput.innerHTML = Math.round(sim.u) + '<span> %</span>';
+    rTime.innerHTML = sim.t.toFixed(0) + '<span> s</span>';
+
+    if(sim.u > 0.5){
+      actTag.textContent = 'AKTUATOR +' + Math.round(sim.u) + '%';
+      actTag.className = 'act-tag act-pos';
+    } else if(sim.u < -0.5){
+      actTag.textContent = 'AKTUATOR ' + Math.round(sim.u) + '%';
+      actTag.className = 'act-tag act-neg';
+    } else {
+      actTag.textContent = 'AKTUATOR 0%';
+      actTag.className = 'act-tag act-zero';
+    }
+  }
+
+  // ---------- rendering: charts ----------
+  function fitCanvas(canvas){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(canvas.height * dpr);
+    if(canvas.width !== targetW || canvas.height*dpr !== targetH){
+      canvas.width = targetW;
+      canvas.dataset.cssHeight = canvas.height;
+    }
+    return {dpr, w: rect.width, h: parseFloat(canvas.dataset.cssHeight || canvas.height)};
+  }
+
+  function drawChart(ctx, canvas, series, opts){
+    const {dpr, w, h} = fitCanvas(canvas);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+
+    const padL = 40, padR = 12, padT = 12, padB = 24;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+
+    const tArr = sim.history.t;
+    const tMin = tArr.length ? tArr[0] : 0;
+    const tMax = tArr.length ? tArr[tArr.length-1] : WINDOW;
+    const tSpan = Math.max(1, tMax - tMin);
+
+    const yMin = opts.yMin, yMax = opts.yMax;
+    const xOf = t => padL + ((t - tMin)/tSpan) * plotW;
+    const yOf = v => padT + (1 - (v - yMin)/(yMax - yMin)) * plotH;
+
+    // grid
+    ctx.strokeStyle = '#232838'; ctx.lineWidth = 1; ctx.font = '10px IBM Plex Mono, monospace'; ctx.fillStyle = '#767D8C';
+    const gridLines = 4;
+    for(let i=0;i<=gridLines;i++){
+      const v = yMin + (yMax-yMin)*i/gridLines;
+      const y = yOf(v);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w-padR, y); ctx.stroke();
+      ctx.fillText(opts.yFmt ? opts.yFmt(v) : v.toFixed(0), 4, y+3);
+    }
+    const xTicks = 5;
+    for(let i=0;i<=xTicks;i++){
+      const t = tMin + tSpan*i/xTicks;
+      const x = xOf(t);
+      ctx.fillText(t.toFixed(0)+'s', x-10, h-6);
+    }
+
+    // reference dashed line
+    if(opts.refValue !== undefined){
+      ctx.save();
+      ctx.strokeStyle = '#7DC4F2'; ctx.setLineDash([5,4]); ctx.lineWidth = 1.5;
+      const y = yOf(opts.refValue);
+      ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke();
+      ctx.restore();
+    }
+
+    // series
+    series.forEach(s=>{
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.beginPath();
+      const arr = s.data;
+      for(let i=0;i<arr.length;i++){
+        const x = xOf(tArr[i]); const y = yOf(arr[i]);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    });
+
+    // border
+    ctx.strokeStyle = '#232838'; ctx.lineWidth = 1; ctx.strokeRect(padL, padT, plotW, plotH);
+  }
+
+  function render(){
+    updateDial();
+
+    const ySpanLo = Math.min(-1, params.SP - 2);
+    const ySpanHi = Math.max(params.SP + 2, 6);
+
+    drawChart(tctx, tempCanvas, [
+      {data: sim.history.y, color:'#FF8F8F'}
+    ], { yMin: ySpanLo, yMax: ySpanHi, refValue: params.SP, yFmt: v=>v.toFixed(1) });
+
+    drawChart(uctx, uCanvas, [
+      {data: sim.history.u, color:'#5EE3A3'}
+    ], { yMin: -100, yMax: 100, yFmt: v=>v.toFixed(0)+'%' });
+  }
+
+  // ---------- main loop ----------
+  let lastTs = null;
+  function loop(ts){
+    if(lastTs === null) lastTs = ts;
+    const realDt = Math.min(0.25, (ts - lastTs)/1000); // cap to avoid spiral of death
+    lastTs = ts;
+
+    if(running){
+      let simSeconds = realDt * speed;
+      let steps = Math.min(400, Math.round(simSeconds / DT));
+      for(let i=0;i<steps;i++) step();
+    }
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>
